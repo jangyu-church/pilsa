@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#C2255C">
+<meta name="theme-color" content="#AD4E15">
 <script>try{document.documentElement.setAttribute("data-theme",JSON.parse(localStorage.getItem("ssb-v1:theme")||"\"light\""));}catch(e){document.documentElement.setAttribute("data-theme","light");}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="쓰다보면">
@@ -18,19 +18,19 @@
 <style>
 /* Layout: 모바일 우선 한 칼럼 앱. 아래 탭바(오늘·현황·인증방·일정·관리), 넓은 화면에서는 현황이 2열 */
 :root{
-  /* 화사한 (기본): 장미빛 흰색 바탕 + 라즈베리 */
-  --bg:#FFF4F7; --surface:#FFFFFF; --surface2:#FBEFF3; --ink:#34202B; --muted:#7A5A68; --line:#F0D6DF;
-  --accent:#C2255C; --accent-ink:#FFFFFF; --accent-soft:#FFE3EC;
-  --good:#2B7A55; --good-soft:#DDF3E6; --warn:#955400; --warn-soft:#FFE8C7; --stamp:#D9480F;
+  /* 화사한 (기본): 따뜻한 흰 바탕 + 구운 오렌지 */
+  --bg:#FFF7EF; --surface:#FFFFFF; --surface2:#FBF0E4; --ink:#35271C; --muted:#7A6454; --line:#EEDCC8;
+  --accent:#AD4E15; --accent-ink:#FFFFFF; --accent-soft:#FFEFE2;
+  --good:#2E7650; --good-soft:#E0F1E3; --warn:#8A6200; --warn-soft:#FFF0BF; --stamp:#B3321F;
   --font-display:'Nanum Myeongjo','Noto Serif KR',Georgia,serif;
   --font-body:'Noto Sans KR',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
   color-scheme:light;
 }
-/* 어두운: 자두빛 어둠 + 분홍 */
+/* 어두운: 따뜻한 갈색 어둠 + 은은한 오렌지 */
 :root[data-theme="dark"]{
-  --bg:#17101A; --surface:#231826; --surface2:#2D2030; --ink:#F6E9EF; --muted:#C2A6B4; --line:#3D2A41;
-  --accent:#FF8FB1; --accent-ink:#2A0F1A; --accent-soft:#44243A;
-  --good:#6FD3A0; --good-soft:#173A2B; --warn:#F2B35E; --warn-soft:#3F2D14; --stamp:#FF9E7A;
+  --bg:#1B1511; --surface:#271E18; --surface2:#32261E; --ink:#F7EBDD; --muted:#C7B09B; --line:#433227;
+  --accent:#F0A45D; --accent-ink:#2B1706; --accent-soft:#4A3220;
+  --good:#7BCB91; --good-soft:#1B3A28; --warn:#E8C35A; --warn-soft:#3F3512; --stamp:#FF8F6B;
   color-scheme:dark;
 }
 
@@ -829,7 +829,7 @@ function go(tab){S.tab=tab;render();window.scrollTo(0,0);}
 function curTheme(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';}
 function setTheme(k){
   document.documentElement.setAttribute('data-theme',k);lsSet(LS+':theme',k);
-  const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',k==='dark'?'#17101A':'#C2255C');
+  const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',k==='dark'?'#1B1511':'#AD4E15');
   renderHead();
 }
 function themeSeg(){
