@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#2B4A8C">
+<meta name="theme-color" content="#C2255C">
+<script>try{document.documentElement.setAttribute("data-theme",JSON.parse(localStorage.getItem("ssb-v1:theme")||"\"light\""));}catch(e){document.documentElement.setAttribute("data-theme","light");}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="쓰다보면">
 <link rel="manifest" href="manifest.webmanifest">
@@ -17,20 +18,21 @@
 <style>
 /* Layout: 모바일 우선 한 칼럼 앱. 아래 탭바(오늘·현황·인증방·일정·관리), 넓은 화면에서는 현황이 2열 */
 :root{
-  --bg:#EEF1F6; --surface:#FFFFFF; --surface2:#F4F6FA; --ink:#16233A; --muted:#5A687E; --line:#D8DEEA;
-  --accent:#2B4A8C; --accent-ink:#FFFFFF; --accent-soft:#E2E9F8;
-  --good:#236B4A; --good-soft:#DAEFE3; --warn:#9A5B0E; --warn-soft:#FAE9CC; --stamp:#B8392D;
+  /* 화사한 (기본): 장미빛 흰색 바탕 + 라즈베리 */
+  --bg:#FFF4F7; --surface:#FFFFFF; --surface2:#FBEFF3; --ink:#34202B; --muted:#7A5A68; --line:#F0D6DF;
+  --accent:#C2255C; --accent-ink:#FFFFFF; --accent-soft:#FFE3EC;
+  --good:#2B7A55; --good-soft:#DDF3E6; --warn:#955400; --warn-soft:#FFE8C7; --stamp:#D9480F;
   --font-display:'Nanum Myeongjo','Noto Serif KR',Georgia,serif;
   --font-body:'Noto Sans KR',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  color-scheme:light;
 }
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --bg:#0E1524; --surface:#162033; --surface2:#1C2940; --ink:#E7ECF5; --muted:#9AA7BD; --line:#2A3850;
-  --accent:#8DB0F5; --accent-ink:#0E1524; --accent-soft:#1F2F52;
-  --good:#6CCB9C; --good-soft:#18362B; --warn:#E5AC5C; --warn-soft:#3A2D16; --stamp:#EE7B6E; color-scheme:dark; } }
+/* 어두운: 자두빛 어둠 + 분홍 */
 :root[data-theme="dark"]{
-  --bg:#0E1524; --surface:#162033; --surface2:#1C2940; --ink:#E7ECF5; --muted:#9AA7BD; --line:#2A3850;
-  --accent:#8DB0F5; --accent-ink:#0E1524; --accent-soft:#1F2F52;
-  --good:#6CCB9C; --good-soft:#18362B; --warn:#E5AC5C; --warn-soft:#3A2D16; --stamp:#EE7B6E; color-scheme:dark; }
+  --bg:#17101A; --surface:#231826; --surface2:#2D2030; --ink:#F6E9EF; --muted:#C2A6B4; --line:#3D2A41;
+  --accent:#FF8FB1; --accent-ink:#2A0F1A; --accent-soft:#44243A;
+  --good:#6FD3A0; --good-soft:#173A2B; --warn:#F2B35E; --warn-soft:#3F2D14; --stamp:#FF9E7A;
+  color-scheme:dark;
+}
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -48,6 +50,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 header.top{padding:18px 0 10px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 header.top h1{margin:0;font-size:26px;line-height:1.1}
 header.top .sub{font-size:13px;color:var(--muted);margin-top:4px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--surface);padding:2px}
+.seg button{border:0;background:none;padding:3px 11px;border-radius:999px;font-size:13px;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.hr{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px}
 
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:20;
@@ -149,7 +155,7 @@ svg.chart text.v{fill:var(--ink);font-weight:700}
 .sched .lb small{color:var(--muted);font-weight:400;margin-left:6px}
 .tick{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;color:transparent}
 .tick svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
-.tick.on{background:var(--good);border-color:var(--good);color:#fff}
+.tick.on{background:var(--good);border-color:var(--good);color:var(--surface)}
 .tick:disabled{opacity:.4;cursor:not-allowed}
 
 .empty{text-align:center;padding:28px 12px}
@@ -820,11 +826,21 @@ function updateAdmin(){
 /* ===== 틀 ===== */
 const TABS=[['today','오늘'],['status','현황'],['proofs','인증방'],['plan','일정'],['admin','관리']];
 function go(tab){S.tab=tab;render();window.scrollTo(0,0);}
+function curTheme(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';}
+function setTheme(k){
+  document.documentElement.setAttribute('data-theme',k);lsSet(LS+':theme',k);
+  const m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content',k==='dark'?'#17101A':'#C2255C');
+  renderHead();
+}
+function themeSeg(){
+  const cur=curTheme();
+  return h('div',{class:'seg',role:'group','aria-label':'화면 색'},[['light','화사한'],['dark','어두운']].map(([k,l])=>h('button',{type:'button','aria-pressed':String(cur===k),onclick:()=>setTheme(k)},l)));
+}
 function renderHead(){
   const hd=$('#head'); const t=today();
   hd.replaceChildren(
     h('div',{},h('h1',{class:'disp',text:'쓰다보면'}),h('div',{class:'sub',text:(S.plan&&S.plan.name)?S.plan.name:'성경필사 모임'})),
-    h('span',{class:'chip num',text:fmtKo(t)}));
+    h('div',{class:'hr'},themeSeg(),h('span',{class:'chip num',text:fmtKo(t)})));
 }
 function renderNav(){
   const nav=$('#navin'); nav.replaceChildren(...TABS.filter(([k])=>k!=='admin'||S.isAdmin).map(([k,l])=>{
