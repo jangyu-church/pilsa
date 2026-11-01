@@ -205,9 +205,20 @@ const fmtN=n=>Math.round(n*10)/10;
 
 /* ===== 일정 입력 해석 ===== */
 function guessUnits(label){
-  let tot=0,found=false;
-  for(const m of label.matchAll(BOOK_RE)){found=true;const a=+m[2],b=m[3]?+m[3]:a;tot+=Math.max(1,b-a+1);}
-  return found?tot:1;
+  const ms=[...label.matchAll(BOOK_RE)];
+  if(!ms.length)return 1;
+  if(ms.length===2){
+    const gap=label.slice(ms[0].index+ms[0][0].length,ms[1].index);
+    if(/[~–\-]/.test(gap)&&/^[\s~–\-]*$/.test(gap)){
+      const bi=m=>BOOKS.findIndex(b=>b[0]===m[1]);
+      const a=FLAT.findIndex(x=>x[0]===bi(ms[0])&&x[1]===+ms[0][2]);
+      const e=FLAT.findIndex(x=>x[0]===bi(ms[1])&&x[1]===+(ms[1][3]||ms[1][2]));
+      if(a>=0&&e>=a)return e-a+1;
+    }
+  }
+  let tot=0;
+  for(const m of ms){const a=+m[2],b=m[3]?+m[3]:a;tot+=Math.max(1,b-a+1);}
+  return tot;
 }
 function parseDateToken(s,ctx){
   s=s.trim(); let m;
@@ -240,6 +251,65 @@ function parseSchedule(text){
   });
   items.sort((a,b)=>a.d<b.d?-1:1);
   return {items,errors};
+}
+/* PDF·문서 글자에서 일정 찾기: 줄마다 날짜와 성경 범위가 함께 있으면 일정으로 읽어요 */
+function parseLoose(text){
+  const items=[],seen=new Set();
+  const ym=text.match(/(20\d{2})\s*년|(20\d{2})\s*[-./]\s*\d/);
+  const ctx={year:ym?+(ym[1]||ym[2]):new Date().getFullYear(),lastMonth:0};
+  const DATE=/(?:(20\d{2})\s*[-./년]\s*)?(\d{1,2})\s*(?:[\/.]|월)\s*(\d{1,2})\s*일?(?!\s*\d)(?!\s*[장편])/;
+  text.split(/\r?\n/).forEach(raw=>{
+    const line=raw.trim(); const m=DATE.exec(line); if(!m)return;
+    const mo=+m[2],dy=+m[3]; if(mo<1||mo>12||dy<1||dy>31)return;
+    if(m[1]){ctx.year=+m[1];ctx.lastMonth=mo;}else{if(mo<ctx.lastMonth)ctx.year++;ctx.lastMonth=mo;}
+    const dt=new Date(ctx.year,mo-1,dy); if(dt.getMonth()!==mo-1)return;
+    let label=(line.slice(0,m.index)+' '+line.slice(m.index+m[0].length))
+      .replace(/\(\s*[월화수목금토일]\s*\)/g,' ').replace(/[월화수목금토일]요일/g,' ')
+      .replace(/[|·•\t]+/g,' ').replace(/^\s*\d+\s*(주차|일차|회차)\s*/,' ')
+      .replace(/(\d)\s+(장|편)/g,'$1$2').replace(/\s+/g,' ').replace(/^[\s\-–~:,.]+|[\s\-–~:,.]+$/g,'');
+    if(![...label.matchAll(BOOK_RE)].length)return;
+    const d=ymd(dt); if(seen.has(d))return; seen.add(d);
+    items.push({d,t:label.slice(0,80),n:guessUnits(label)});
+  });
+  items.sort((a,b)=>a.d<b.d?-1:1);
+  return {items};
+}
+let pdfLib=null;
+async function loadPdfjs(){
+  if(pdfLib)return pdfLib;
+  if(!window.pdfjsLib)await new Promise((res,rej)=>{const sc=document.createElement('script');sc.src='vendor/pdf.min.js';sc.onload=res;sc.onerror=()=>rej(new Error('load'));document.head.append(sc);});
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc='vendor/pdf.worker.min.js';
+  return (pdfLib=window.pdfjsLib);
+}
+async function pdfToText(file){
+  const lib=await loadPdfjs();
+  const doc=await lib.getDocument({data:await file.arrayBuffer(),cMapUrl:'vendor/cmaps/',cMapPacked:true}).promise;
+  const out=[];
+  for(let p=1;p<=Math.min(doc.numPages,60);p++){
+    const tc=await (await doc.getPage(p)).getTextContent(),lines=[];
+    tc.items.forEach(it=>{
+      if(!it.str||!it.str.trim())return;
+      const y=it.transform[5],x=it.transform[4];
+      let L=lines.find(l=>Math.abs(l.y-y)<3); if(!L){L={y,parts:[]};lines.push(L);} L.parts.push({x,s:it.str});
+    });
+    lines.sort((a,b)=>b.y-a.y).forEach(L=>out.push(L.parts.sort((a,b)=>a.x-b.x).map(q=>q.s).join(' ')));
+  }
+  return out.join('\n');
+}
+async function readScheduleFile(file){
+  const A=admin; toast('파일을 읽는 중…');
+  try{
+    const isPdf=/\.pdf$/i.test(file.name)||file.type==='application/pdf';
+    const text=isPdf?await pdfToText(file):await file.text();
+    const r=parseLoose(text);
+    if(!r.items.length){
+      A.preview.replaceChildren(h('div',{class:'notice'},h('div',{text:'일정을 찾지 못했어요. 사진이나 스캔한 PDF라면 글자를 읽을 수 없어요. 날짜와 성경 범위가 한 줄에 함께 있는 문서인지 확인해 주세요.'}),
+      text.trim()?h('div',{class:'small',style:'margin-top:6px;white-space:pre-wrap',text:'읽은 글자 앞부분: '+text.trim().slice(0,200)}):null));
+      toast('일정을 찾지 못했어요.');return;
+    }
+    A.text.value=toLines(r.items);A.dirty=true;renderPreview();
+    toast(r.items.length+'일치 일정을 읽었어요. 아래에서 확인 후 저장하세요.');
+  }catch(e){toast('파일을 읽지 못했어요. 다른 파일로 시도해 보세요.');}
 }
 function chunkLabel(chunk){
   const g=[];
@@ -655,9 +725,14 @@ function adminRoot(){
   A.days=[0,1,2,3,4,5,6].map(d=>h('input',{type:'checkbox',value:String(d),checked:d!==0}));
   const preset=(label,sb,sc,eb,ec,per)=>h('button',{onclick:()=>{A.sb.value=sb;A.sc.value=sc;A.eb.value=eb;A.ec.value=ec;A.per.value=per;}},label);
   const bi=n=>BOOKS.findIndex(b=>b[0]===n);
+  A.file=h('input',{type:'file',id:'plan-file',accept:'.pdf,.txt,.csv,application/pdf,text/plain',hidden:true,onchange:e=>{const f=e.target.files[0];e.target.value='';if(f)readScheduleFile(f);}});
   A.root=h('div',{class:'stack'},
     h('div',{class:'card'},
-      h('h2',{class:'disp',text:'1. 일정 자동 만들기'}),
+      h('h2',{class:'disp',text:'1. 일정 파일로 올리기'}),
+      h('p',{class:'muted small',style:'margin:-4px 0 10px',text:'이미 만들어 둔 일정표(PDF, 텍스트)가 있으면 올려 보세요. 날짜와 성경 범위가 한 줄에 함께 있는 문서를 읽어 드려요. 사진이나 스캔한 PDF는 읽을 수 없어요.'}),
+      A.file,h('button',{class:'btn primary',onclick:()=>A.file.click()},'PDF·텍스트 파일 고르기')),
+    h('div',{class:'card'},
+      h('h2',{class:'disp',text:'2. 일정 자동 만들기'}),
       h('p',{class:'muted small',style:'margin:-4px 0 10px',text:'어디부터 어디까지, 하루 몇 장씩 쓸지 정하면 날짜별 일정을 만들어 줘요.'}),
       h('div',{class:'chips',style:'margin-bottom:12px'},
         preset('요한복음 21장 (하루 1장)',bi('요한복음'),1,bi('요한복음'),21,1),
@@ -674,7 +749,7 @@ function adminRoot(){
           A.text.value=toLines(r.items); renderPreview(); toast(r.items.length+'일치 일정을 만들었어요. 확인 후 저장하세요.');
         }},'일정 만들기')))),
     h('div',{class:'card'},
-      h('h2',{class:'disp',text:'2. 확인하고 저장'}),
+      h('h2',{class:'disp',text:'3. 확인하고 저장'}),
       h('div',{class:'stack'},
         h('label',{class:'f',for:'plan-name'},'모임 이름 / 필사 제목',A.name),
         h('label',{class:'f',for:'plan-text'},'날짜별 일정 (직접 고쳐도 돼요)',A.text),
