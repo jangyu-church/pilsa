@@ -234,7 +234,8 @@ function parseDateToken(s,ctx){
 function parseSchedule(text){
   const items=[],errors=[],ctx={year:new Date().getFullYear(),lastMonth:0},seen=new Set();
   text.split(/\r?\n/).forEach((raw,i)=>{
-    const line=raw.trim(); if(!line)return;
+    const line=raw.trim().replace(/^\|+|\|+$/g,'').trim();
+    if(!line||/^[\s|:\-]+$/.test(line)||/^날짜\s*[|\t]/.test(line))return;   // 빈 줄, 표의 구분선·제목줄은 건너뜀
     let parts,mm;
     if(line.includes('|'))parts=line.split('|').map(s=>s.trim());
     else if(line.includes('\t'))parts=line.split('\t').map(s=>s.trim());
