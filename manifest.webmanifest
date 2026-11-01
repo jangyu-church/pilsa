@@ -1,0 +1,17 @@
+{
+  "name": "쓰다보면",
+  "short_name": "쓰다보면",
+  "description": "성경필사 모임 '쓰다보면'의 오늘 필사 체크, 사진 인증, 진행 현황 앱",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF1F6",
+  "theme_color": "#2B4A8C",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
