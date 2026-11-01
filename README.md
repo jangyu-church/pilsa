@@ -28,7 +28,7 @@
 
 ### 3. 앱 공개하기 (GitHub Pages)
 저장소 **Settings → Pages → Branch: main / (root) → Save**.
-몇 분 뒤 `https://jangyu-church.github.io/<저장소이름>/` 주소가 생깁니다. 이 주소를 단톡방에 공유하면 됩니다.
+몇 분 뒤 `https://jangyu-church.github.io/pilsa/` 주소가 생깁니다. 이 주소를 단톡방에 공유하면 됩니다.
 폰에서 열고 **홈 화면에 추가**하면 앱처럼 쓸 수 있어요.
 
 ### 4. 관리자 정하기

@@ -1,16 +1,14 @@
 {
-  "id": "/ssb-app",
   "name": "쓰다보면",
   "short_name": "쓰다보면",
   "description": "성경필사 모임 '쓰다보면'의 오늘 필사 체크, 사진 인증, 진행 현황 앱",
   "lang": "ko",
-  "start_url": "./?source=pwa",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#FFF7EF",
   "theme_color": "#AD4E15",
-  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icon-192.png",
