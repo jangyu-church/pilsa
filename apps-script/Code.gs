@@ -12,25 +12,31 @@ var MAX_MEMBERS = 200;
 var MAX_PLAN_DAYS = 800;
 var MAX_PHOTO_CHARS = 450000;  // 압축된 사진(base64) 최대 길이
 
+/* ───────── 시트 구성 (setup 과 자동 복구가 함께 씀) ───────── */
+var LAYOUT = {
+  members: ['id', 'name', 'pinHash', 'joined'],
+  admins: ['name'],
+  staff: ['memberId'],
+  config: ['key', 'value'],
+  plan: ['date', 'label', 'units'],
+  checks: ['memberId', 'date', 'at', 'photoId'],
+  notice: ['text', 'at', 'by'],
+  cheers: ['from', 'to', 'date', 'at']
+};
+var MAX_STAFF = 3;           // 공지를 쓸 수 있는 운영진 수
+
 /* ───────── 처음 한 번 실행하는 준비 함수 ───────── */
 function setup() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var layout = {
-    members: ['id', 'name', 'pinHash', 'joined'],
-    admins: ['name'],
-    config: ['key', 'value'],
-    plan: ['date', 'label', 'units'],
-    checks: ['memberId', 'date', 'at', 'photoId'],
-    notice: ['text', 'at']
-  };
-  Object.keys(layout).forEach(function (name) {
+  Object.keys(LAYOUT).forEach(function (name) {
     var s = ss.getSheetByName(name) || ss.insertSheet(name);
-    if (s.getLastRow() === 0) s.getRange(1, 1, 1, layout[name].length).setValues([layout[name]]);
+    if (s.getLastRow() === 0) s.getRange(1, 1, 1, LAYOUT[name].length).setValues([LAYOUT[name]]);
     s.setFrozenRows(1);
   });
   // 날짜 칸이 자동으로 날짜 형식으로 바뀌지 않도록 글자 형식으로 고정
   ss.getSheetByName('plan').getRange('A:B').setNumberFormat('@');
   ss.getSheetByName('checks').getRange('B:B').setNumberFormat('@');
+  ss.getSheetByName('cheers').getRange('C:C').setNumberFormat('@');
   var cfg = ss.getSheetByName('config');
   if (cfg.getLastRow() < 2) cfg.getRange(2, 1, 1, 2).setValues([['title', '']]);
 
@@ -41,7 +47,7 @@ function setup() {
     folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     props.setProperty('PHOTO_FOLDER', folder.getId());
   }
-  Logger.log('준비 완료. 이제 [배포 > 새 배포 > 웹 앱]으로 배포하세요.');
+  Logger.log('준비 완료. 이제 [배포 > 배포 관리 > 수정 > 새 버전]으로 배포하세요.');
 }
 
 /* ───────── 웹 앱 진입점 ───────── */
@@ -63,7 +69,8 @@ function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).set
 var READ_ONLY = { state: 1, login: 1 };
 var HANDLERS = {
   register: register_, login: login_, state: state_, check: check_, photo: photo_, rename: rename_,
-  setPlan: setPlan_, setNotice: setNotice_, removeMember: removeMember_, resetPin: resetPin_
+  setPlan: setPlan_, setNotice: setNotice_, removeMember: removeMember_, resetPin: resetPin_,
+  setStaff: setStaff_, cheer: cheer_
 };
 
 function route_(b) {
@@ -76,16 +83,20 @@ function route_(b) {
 }
 
 /* ───────── 시트 읽기 도구 ───────── */
-var WIDTH = { members: 4, admins: 1, config: 2, plan: 3, checks: 4, notice: 2 };
 function sheet_(name) {
-  var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!s) throw { error: 'server', message: '시트 "' + name + '"이(가) 없어요. setup() 을 실행했는지 확인해 주세요.' };
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), s = ss.getSheetByName(name);
+  if (!s) {
+    if (!LAYOUT[name]) throw { error: 'server', message: '시트 "' + name + '"이(가) 없어요.' };
+    s = ss.insertSheet(name);                       // 새로 생긴 탭은 자동으로 만들어 줌
+    s.getRange(1, 1, 1, LAYOUT[name].length).setValues([LAYOUT[name]]);
+    s.setFrozenRows(1);
+  }
   return s;
 }
 function rows_(name) {
   var s = sheet_(name), n = s.getLastRow();
   if (n < 2) return [];
-  return s.getRange(2, 1, n - 1, WIDTH[name]).getValues();
+  return s.getRange(2, 1, n - 1, LAYOUT[name].length).getValues();
 }
 function ds_(v) {
   if (v instanceof Date) return Utilities.formatDate(v, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
@@ -131,6 +142,16 @@ function need_(b) {
     if (String(ms[i][0]) === id) return { id: id, name: String(ms[i][1]), row: i + 2 };
   }
   throw { error: 'auth' };
+}
+function staffIds_() {
+  return rows_('staff').map(function (r) { return String(r[0]).trim(); }).filter(function (x) { return x; });
+}
+function isStaff_(me) { return staffIds_().indexOf(me.id) >= 0; }
+function roleOf_(me) { return isAdmin_(me.name) ? 'admin' : (isStaff_(me) ? 'staff' : 'member'); }
+function needNotice_(b) {
+  var me = need_(b);
+  if (!isAdmin_(me.name) && !isStaff_(me)) throw { error: 'forbidden', message: '공지는 관리자와 운영진만 쓸 수 있어요.' };
+  return me;
 }
 function needAdmin_(b) {
   var me = need_(b);
@@ -192,9 +213,18 @@ function state_(b) {
   rows_('checks').forEach(function (r) {
     var id = String(r[0]); (checks[id] = checks[id] || []).push([ds_(r[1]), Number(r[2]) || 0, String(r[3] || '')]);
   });
-  var nt = rows_('notice'), notice = nt.length ? String(nt[nt.length - 1][0]) : '';
-  return { ok: true, title: title, plan: plan, members: members, checks: checks, notice: notice,
-           admin: isAdmin_(me.name), today: todayKst_(), now: Date.now() };
+  var nrows = rows_('notice'), nameOf = {};
+  members.forEach(function (m) { nameOf[m.id] = m.name; });
+  var notices = nrows.map(function (r) { return { text: String(r[0]).trim(), at: Number(r[1]) || 0, by: String(r[2] || '') }; });
+  var last = notices.length ? notices[notices.length - 1] : null;
+  var notice = last && last.text ? last : null;                                 // 지금 보이는 공지 (맨 마지막 줄이 비어 있으면 내린 상태)
+  var recent = notices.filter(function (n) { return n.text; }).slice(-5).reverse();
+  var cutoff = Utilities.formatDate(new Date(Date.now() - 7 * 864e5), TZ, 'yyyy-MM-dd');
+  var cheers = rows_('cheers').map(function (r) { return [String(r[0]), String(r[1]), ds_(r[2])]; })
+    .filter(function (c) { return c[2] >= cutoff; });
+  return { ok: true, title: title, plan: plan, members: members, checks: checks, notice: notice, notices: recent,
+           staff: staffIds_(), role: roleOf_(me), admin: isAdmin_(me.name), cheers: cheers,
+           today: todayKst_(), now: Date.now() };
 }
 
 /* ───────── 체크 / 사진 ───────── */
@@ -280,9 +310,41 @@ function setPlan_(b) {
 }
 
 function setNotice_(b) {
-  needAdmin_(b);
-  sheet_('notice').appendRow([cleanText_(b.text, 200), Date.now()]);
+  var me = needNotice_(b);
+  sheet_('notice').appendRow([cleanText_(b.text, 200), Date.now(), me.id]);   // 빈 글을 올리면 공지를 내린 것
   return { ok: true };
+}
+
+function setStaff_(b) {
+  needAdmin_(b);
+  var target = String(b.target || ''), ms = rows_('members'), found = null;
+  for (var i = 0; i < ms.length; i++) if (String(ms[i][0]) === target) found = { id: target, name: String(ms[i][1]) };
+  if (!found) throw { error: 'bad_run', message: '없는 회원이에요.' };
+  var st = sheet_('staff'), rs = rows_('staff'), at = -1;
+  for (var k = 0; k < rs.length; k++) if (String(rs[k][0]).trim() === target) at = k;
+  if (b.on === false) { if (at >= 0) st.deleteRow(at + 2); return { ok: true }; }
+  if (at >= 0) return { ok: true };
+  if (isAdmin_(found.name)) throw { error: 'bad_run', message: '관리자는 이미 모든 권한이 있어요.' };
+  if (rs.length >= MAX_STAFF) throw { error: 'full_staff', message: '운영진은 ' + MAX_STAFF + '명까지예요.' };
+  st.appendRow([target]);
+  return { ok: true };
+}
+
+/* ───────── 응원 ───────── */
+function cheer_(b) {
+  var me = need_(b), target = String(b.target || ''), d = String(b.date || '');
+  if (target === me.id) throw { error: 'bad_run', message: '내 자신은 응원할 수 없어요.' };
+  if (!validDate_(d) || d > todayKst_() || !planHas_(d)) throw { error: 'bad_run', message: '응원할 수 없는 날짜예요.' };
+  var ok = rows_('members').some(function (r) { return String(r[0]) === target; });
+  if (!ok) throw { error: 'bad_run', message: '없는 회원이에요.' };
+  var s = sheet_('cheers'), rs = rows_('cheers'), at = -1;
+  for (var i = 0; i < rs.length; i++) if (String(rs[i][0]) === me.id && String(rs[i][1]) === target && ds_(rs[i][2]) === d) at = i;
+  if (b.on === false) { if (at >= 0) s.deleteRow(at + 2); return { ok: true, on: false }; }
+  if (at < 0) {
+    s.appendRow([me.id, target, '', Date.now()]);
+    s.getRange(s.getLastRow(), 3).setNumberFormat('@').setValue(d);
+  }
+  return { ok: true, on: true };
 }
 
 function removeMember_(b) {
@@ -295,6 +357,10 @@ function removeMember_(b) {
       for (var k = rs.length - 1; k >= 0; k--) {
         if (String(rs[k][0]) === target) { trashPhoto_(String(rs[k][3] || '')); cs.deleteRow(k + 2); }
       }
+      var st = sheet_('staff'), ss2 = rows_('staff');
+      for (var m = ss2.length - 1; m >= 0; m--) if (String(ss2[m][0]).trim() === target) st.deleteRow(m + 2);
+      var ch = sheet_('cheers'), cr = rows_('cheers');
+      for (var n = cr.length - 1; n >= 0; n--) if (String(cr[n][0]) === target || String(cr[n][1]) === target) ch.deleteRow(n + 2);
       return { ok: true };
     }
   }
