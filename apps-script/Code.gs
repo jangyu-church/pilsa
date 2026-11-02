@@ -7,7 +7,7 @@
  */
 
 var TZ = 'Asia/Seoul';
-var PHOTO_KEEP_DAYS = 14;      // 인증 사진은 최근 2주만 보관
+var PHOTO_KEEP_DAYS = 90;      // 인증 사진은 최근 90일(약 3개월)만 보관
 var MAX_MEMBERS = 200;
 var MAX_PLAN_DAYS = 800;
 var MAX_PHOTO_CHARS = 450000;  // 압축된 사진(base64) 최대 길이

@@ -751,7 +751,7 @@ function viewToday(){
       h('div',{class:'shot'},
         fileIn,
         h('button',{class:'btn',disabled:!can,onclick:()=>fileIn.click()},p.pics&&p.pics[t]?'사진 다시 올리기':'사진으로 인증하기'),
-        p.pics&&p.pics[t]?(()=>{const im=h('img',{alt:'내 인증 사진'});loadShot(S.myId,t).then(s=>{if(s){im.src=s;im.onclick=()=>lightbox(s);}});return im;})():h('span',{class:'muted small',text:'사진을 올리면 자동으로 완료 처리돼요. 사진은 최근 2주만 보관돼요.'})));
+        p.pics&&p.pics[t]?(()=>{const im=h('img',{alt:'내 인증 사진'});loadShot(S.myId,t).then(s=>{if(s){im.src=s;im.onclick=()=>lightbox(s);}});return im;})():h('span',{class:'muted small',text:'사진을 올리면 자동으로 완료 처리돼요. 사진은 3개월(90일) 동안 보관돼요.'})));
     v.append(card);
     const got=S.cheers.filter(c=>c[1]===S.myId&&c[2]===t).map(c=>c[0]);
     if(got.length)v.append(h('div',{class:'card'},h('h2',{class:'disp',text:'응원이 도착했어요'}),h('p',{style:'margin:0',text:got.map(nameOfId).slice(0,4).join(', ')+(got.length>4?' 외 '+(got.length-4)+'명':'')+' 님이 오늘 응원했어요.'})));
