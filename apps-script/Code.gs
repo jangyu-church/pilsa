@@ -351,7 +351,7 @@ function setNotice_(b) {
 }
 
 /* 역할 바꾸기: member(회원) / staff(운영진, 공지만) / admin(관리자, 관리 탭 전체).
-   관리자를 임명하거나 내리는 일은 최고 관리자만 할 수 있어요. */
+   관리자는 서로 세우고 내릴 수 있어요. 단, 시트 admins 탭에 적힌 최고 관리자 계정만은 바꿀 수 없어요. */
 function setRole_(b) {
   var me = needAdmin_(b), target = String(b.target || ''), role = String(b.role || '');
   if (['admin', 'staff', 'member'].indexOf(role) < 0) throw { error: 'bad_run', message: '역할이 올바르지 않아요.' };
@@ -361,7 +361,6 @@ function setRole_(b) {
   if (isOwner_(found.name)) throw { error: 'bad_run', message: '최고 관리자는 이미 모든 권한이 있어요.' };
   var rr = roleRows_(), cur = 'member', at = null;
   rr.forEach(function (x) { if (x.id === target) { cur = x.role; at = x; } });
-  if ((role === 'admin' || cur === 'admin') && !isOwner_(me.name)) throw { error: 'forbidden', message: '관리자는 최고 관리자만 정할 수 있어요.' };
   if (role === cur) return { ok: true };
   var st = sheet_('staff');
   if (role === 'member') { if (at) st.deleteRow(at.row); return { ok: true }; }
@@ -374,12 +373,11 @@ function setRole_(b) {
 /* 예전 화면(운영진 지정/해제)과의 호환 */
 function setStaff_(b) { return setRole_({ id: b.id, token: b.token, target: b.target, role: b.on === false ? 'member' : 'staff' }); }
 
-/* 관리자 계정(최고 관리자·지정 관리자)을 바꾸는 일은 최고 관리자만 */
+/* 최고 관리자(시트 admins 탭) 계정은 지정된 관리자가 비밀번호 변경·내보내기를 할 수 없어요. 본인을 내보내는 일도 막아요. */
 function guardAdminTarget_(me, target) {
   var name = '';
   rows_('members').forEach(function (r) { if (String(r[0]) === target) name = String(r[1]); });
-  var targetIsAdmin = isOwner_(name) || adminIds_().indexOf(target) >= 0;
-  if (targetIsAdmin && !isOwner_(me.name)) throw { error: 'forbidden', message: '관리자 계정은 최고 관리자만 바꿀 수 있어요.' };
+  if (isOwner_(name) && !isOwner_(me.name)) throw { error: 'forbidden', message: '최고 관리자 계정은 바꿀 수 없어요.' };
 }
 
 /* ───────── 응원 ───────── */
@@ -402,6 +400,7 @@ function cheer_(b) {
 function removeMember_(b) {
   var me = needAdmin_(b);
   var target = String(b.target || ''), ms = rows_('members');
+  if (target === me.id) throw { error: 'bad_run', message: '본인은 내보낼 수 없어요.' };
   guardAdminTarget_(me, target);
   for (var i = 0; i < ms.length; i++) {
     if (String(ms[i][0]) === target) {

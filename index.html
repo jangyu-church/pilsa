@@ -985,7 +985,7 @@ function adminRoot(){
           h('button',{class:'btn',onclick:renderPreview},'미리보기'),
           h('button',{class:'btn primary',onclick:savePlan},'이 일정으로 저장'))),
       h('p',{class:'muted small',style:'margin:10px 0 0',text:'일정을 바꿔도 참여자들이 이미 체크한 기록은 날짜 기준으로 그대로 남아요.'})),
-    h('div',{class:'card'},h('h2',{class:'disp',text:'참여자 · 역할'}),h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'운영진(최대 3명)은 공지를 쓸 수 있어요. 관리자(최대 5명)는 일정·공지·참여자 관리까지 할 수 있어요. 관리자는 최고 관리자만 정할 수 있어요.'}),A.members));
+    h('div',{class:'card'},h('h2',{class:'disp',text:'참여자 · 역할'}),h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'이름 옆 선택 칸에서 역할을 바꿔요. 운영진(최대 3명)은 공지를 쓸 수 있어요. 관리자(최대 5명)는 일정·공지·운영진 지정·다른 관리자 지정까지 모두 할 수 있어요.'}),A.members));
   A.text.addEventListener('input',()=>{A.dirty=true;});
   A.name.addEventListener('input',()=>{A.dirty=true;});
   return A.root;
@@ -1024,7 +1024,7 @@ function updateAdmin(){
   A.members.replaceChildren(ids.length?h('ul',{class:'sched'},ids.map(id=>{
     const pin=h('input',{type:'password',inputmode:'numeric',maxlength:'4',placeholder:'새 번호 4자리','aria-label':'새 비밀번호',style:'width:120px',autocomplete:'off'});
     const rl=roleOfId(id);
-    const locked=rl==='owner'||(rl==='admin'&&!S.owner);         // 관리자 계정은 최고 관리자만 바꿀 수 있어요
+    const locked=rl==='owner';                                   // 최고 관리자(시트에 적힌 분)만 바꿀 수 없어요
     const sel=h('select',{'aria-label':S.members[id].name+' 역할',style:'width:auto',onchange:async e=>{
       const v=e.target.value;
       try{await rpc('setRole',{target:id,role:v});toast(v==='admin'?'관리자로 정했어요.':(v==='staff'?'운영진으로 정했어요.':'회원으로 바꿨어요.'));await refresh();}
@@ -1032,11 +1032,10 @@ function updateAdmin(){
     }},
       h('option',{value:'member',selected:rl==='member'},'회원'),
       h('option',{value:'staff',selected:rl==='staff'},'운영진 (공지)'),
-      h('option',{value:'admin',selected:rl==='admin',disabled:!S.owner},'관리자'+(S.owner?'':' (최고 관리자만)')));
+      h('option',{value:'admin',selected:rl==='admin'},'관리자 (관리 탭 전체)'));
     return h('li',{style:'grid-template-columns:minmax(0,1fr);gap:6px'},
       h('span',{class:'lb'},S.members[id].name||'이름 없음',rl==='owner'?h('span',{class:'tag adm',text:'최고 관리자'}):roleTag(id)),
       rl==='owner'?h('span',{class:'muted small',text:'모든 권한을 가진 분이에요. 바꿀 수 없어요.'}):
-      locked?h('span',{class:'muted small',text:'관리자 계정은 최고 관리자만 바꿀 수 있어요.'}):
       h('div',{class:'row'},
         sel,
         pin,
