@@ -495,9 +495,10 @@ const ensureMine=()=>{const p=S.progress[S.myId]=S.progress[S.myId]||{done:{},pi
 const isMember=()=>!!S.session;
 const myName=()=>(S.members[S.myId]&&S.members[S.myId].name)||(S.session&&S.session.name)||'';
 const memberIds=()=>Object.keys(S.members);
+const unitOf=()=>((S.plan&&S.plan.unit)==='회'?'회':'장');   // 하루 분량을 세는 단위
 
 function applyState(j){
-  S.plan={name:j.title||'',items:j.plan||[]};S.planLoaded=true;
+  S.plan={name:j.title||'',unit:j.unit==='회'?'회':'장',items:j.plan||[]};S.planLoaded=true;
   const m={};(j.members||[]).forEach(x=>{m[x.id]={name:x.name};});S.members=m;
   const pr={};
   Object.keys(j.checks||{}).forEach(id=>{const done={},pics={};j.checks[id].forEach(c=>{done[c[0]]=c[1]||1;if(c[2])pics[c[0]]=c[2];});pr[id]={done,pics};});
@@ -759,7 +760,7 @@ function viewToday(){
     const card=h('div',{class:'card'},
       h('div',{class:'eyebrow',text:'오늘의 필사 · '+fmtKo(t)}),
       h('div',{class:'today-label disp',text:todayIt.t}),
-      h('span',{class:'amount num',text:todayIt.n+(todayIt.t.includes('시편')&&!todayIt.t.includes('장')?'편':'장')}),
+      h('span',{class:'amount num',text:todayIt.n+(unitOf()==='회'?'회':(todayIt.t.includes('시편')&&!todayIt.t.includes('장')?'편':'장'))}),
       h('button',{class:'checkbtn'+(isDone?' done':''),disabled:!can,'aria-pressed':String(isDone),onclick:()=>toggleDay(t)},
         svgEl(CHECK),isDone?'오늘 필사 완료 (누르면 취소)':'다 썼어요'),
       h('div',{class:'shot'},
@@ -783,24 +784,37 @@ function viewToday(){
     v.append(h('div',{class:'card'},
       h('div',{class:'row',style:'justify-content:space-between;margin-bottom:10px'},h('h2',{class:'disp',style:'margin:0',text:'내 진행'}),nameLine),
       h('div',{class:'ringbox'},ring(st.pct),
-        h('div',{class:'kpis',style:'flex:1 1 260px'},kpi(fmtN(st.remU)+'장','남은 분량'),kpi(st.remDays+'일','남은 일정'),kpi(st.streak+'일','연속 필사'),kpi(st.remDays?fmtN(st.perDay)+'장':'-','하루 평균 필요')))));
+        h('div',{class:'kpis',style:'flex:1 1 260px'},kpi(fmtN(st.remU)+unitOf(),'남은 분량'),kpi(st.remDays+'일','남은 일정'),kpi(st.streak+'일','연속 필사'),kpi(st.remDays?fmtN(st.perDay)+unitOf():'-','하루 평균 필요')))));
     const missed=its.filter(i=>i.d<t&&!done[i.d]).reverse();
     if(missed.length){
       const shown=S.showAllMissed?missed:missed.slice(0,5);
       v.append(h('div',{class:'card'},
         h('h2',{text:'밀린 분량 '+missed.length+'일'}),
-        h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'뒤늦게 썼다면 여기서 체크할 수 있어요.'}),
+        h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'뒤늦게 썼다면 여기서 체크할 수 있어요. 그동안 단톡방에 인증하며 다 쓰셨다면 아래 버튼으로 한 번에 체크하세요.'}),
         h('ul',{class:'sched'},shown.map(i=>schedRow(i,done,t))),
-        missed.length>5?h('button',{class:'btn sm',onclick:()=>{S.showAllMissed=!S.showAllMissed;schedule();}},S.showAllMissed?'접기':'모두 보기 ('+missed.length+')'):null));
+        h('div',{class:'row',style:'margin-top:8px'},
+          missed.length>5?h('button',{class:'btn sm',onclick:()=>{S.showAllMissed=!S.showAllMissed;schedule();}},S.showAllMissed?'접기':'모두 보기 ('+missed.length+')'):null,
+          h('button',{class:'btn sm primary',onclick:()=>checkAllMissed(missed.map(i=>i.d))},'밀린 '+missed.length+'일 모두 썼어요'))));
     }
   }
   return v;
+}
+let armAll=false;
+function checkAllMissed(dates){
+  if(!S.session||!dates.length)return;
+  if(!armAll){armAll=true;toast('한 번 더 누르면 밀린 '+dates.length+'일이 모두 ‘썼어요’로 체크돼요.');setTimeout(()=>{armAll=false;},4500);return;}
+  armAll=false;
+  const p=ensureMine(),now=Date.now(),added=dates.filter(d=>!p.done[d]);
+  added.forEach(d=>{p.done[d]=now;});
+  pendingN++;schedule();
+  wq=wq.then(()=>rpc('checkMany',{dates})).catch(e=>{added.forEach(d=>{delete p.done[d];});toast(errText(e));if(e&&e.error==='auth')logout(true);})
+    .then(()=>{pendingN--;schedule();if(pendingN===0)refresh();});
 }
 function schedRow(it,done,t){
   const on=!!done[it.d]; const can=isMember()&&it.d<=t;
   return h('li',{class:it.d===t?'today':''},
     h('span',{class:'dt num',text:fmtKo(it.d)}),
-    h('span',{class:'lb'},it.t,h('small',{class:'num',text:it.n+'장'})),
+    h('span',{class:'lb'},it.t,h('small',{class:'num',text:it.n+unitOf()})),
     h('button',{class:'tick'+(on?' on':''),disabled:!can,'aria-label':fmtKo(it.d)+(on?' 완료 취소':' 완료 체크'),'aria-pressed':String(on),onclick:()=>toggleDay(it.d)},svgEl(CHECK)));
 }
 
@@ -842,7 +856,7 @@ function viewStatus(){
     const st=stats(its,myProg().done||{},t),done=myProg().done||{};
     cols.append(h('div',{class:'card'},
       h('h2',{class:'disp',text:'내 기록'}),
-      h('div',{class:'kpis',style:'grid-template-columns:repeat(2,1fr)'},kpi(st.pct+'%','진행률'),kpi(fmtN(st.doneU)+' / '+fmtN(st.total)+'장','쓴 분량'),kpi(st.behindDays?st.behindDays+'일':'없음','밀린 날'),kpi(st.streak+'일','연속 필사')),
+      h('div',{class:'kpis',style:'grid-template-columns:repeat(2,1fr)'},kpi(st.pct+'%','진행률'),kpi(fmtN(st.doneU)+' / '+fmtN(st.total)+unitOf(),'쓴 분량'),kpi(st.behindDays?st.behindDays+'일':'없음','밀린 날'),kpi(st.streak+'일','연속 필사')),
       h('div',{style:'height:14px'}),
       h('div',{class:'cal',role:'img','aria-label':'일정별 필사 현황'},its.map(i=>h('i',{class:(done[i.d]?'d':(i.d<t?'m':''))+(i.d===t?' t':''),title:fmtKo(i.d)+' '+i.t}))),
       h('div',{class:'legend'},h('span',{},h('i',{class:'d'}),'완료'),h('span',{},h('i',{class:'m'}),'밀림'),h('span',{},h('i'),'예정'))));
@@ -854,7 +868,7 @@ function viewStatus(){
   rows.forEach((r,i)=>rk.append(h('li',{class:r.id===S.myId?'me':''},
     h('span',{class:'no num',text:String(i+1)}),
     h('span',{class:'nm'},r.name+(r.id===S.myId?' (나)':''),roleLabel(r.id)?h('span',{class:'tag',text:'운영진'}):null),
-    h('span',{class:'val num',text:r.st.pct+'% · '+fmtN(r.st.doneU)+'/'+fmtN(r.st.total)+'장'+(r.st.streak>=3?' · '+r.st.streak+'일 연속':'')}),
+    h('span',{class:'val num',text:r.st.pct+'% · '+fmtN(r.st.doneU)+'/'+fmtN(r.st.total)+unitOf()+(r.st.streak>=3?' · '+r.st.streak+'일 연속':'')}),
     h('span',{class:'ch'},(todayIt&&r.id!==S.myId&&isMember())?cheerBtn(r.id,t):null),
     h('span',{class:'bar'},h('b',{style:'width:'+r.st.pct+'%'})))));
   v.append(h('div',{class:'card'},h('h2',{class:'disp',text:'진행 순위'}),rows.length?rk:h('p',{class:'muted',text:'아직 참여한 분이 없어요.'}),
@@ -911,7 +925,7 @@ function viewPlan(){
   const done=myProg().done||{};
   v.append(h('div',{class:'card'},
     h('h2',{class:'disp',text:(S.plan.name||'필사 일정')}),
-    h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'총 '+its.length+'일 · '+fmtN(its.reduce((s,i)=>s+i.n,0))+'장'+(isMember()?' · 오늘까지 날짜는 직접 체크할 수 있어요':'')}),
+    h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'총 '+its.length+'일 · '+fmtN(its.reduce((s,i)=>s+i.n,0))+unitOf()+(isMember()?' · 오늘까지 날짜는 직접 체크할 수 있어요':'')}),
     h('ul',{class:'sched'},its.map(i=>schedRow(i,done,t)))));
   return v;
 }
@@ -922,6 +936,7 @@ function adminRoot(){
   if(admin)return admin.root;
   const A={}; admin=A;
   A.name=h('input',{type:'text',id:'plan-name',maxlength:'40',placeholder:'예: 2026 신약 필사'});
+  A.unit=h('select',{id:'plan-unit',onchange:()=>{A.dirty=true;renderPreview();}},h('option',{value:'장'},'장 (성경 장 수로 세기)'),h('option',{value:'회'},'회 (하루 1회로 세기)'));
   A.text=h('textarea',{id:'plan-text',placeholder:'2026-11-02 | 요한복음 1-3장 | 3\n2026-11-03 | 요한복음 4-5장 | 2\n\n(날짜 | 범위 | 장 수) 한 줄에 하루씩.\n11/2 요한복음 1-3장 처럼 써도 되고, 장 수를 비우면 책 이름에서 계산해요.'});
   A.preview=h('div',{});
   A.members=h('div',{});
@@ -954,12 +969,13 @@ function adminRoot(){
         h('div',{},h('button',{class:'btn primary',onclick:()=>{
           const r=generate({sb:+A.sb.value,sc:+A.sc.value,eb:+A.eb.value,ec:+A.ec.value,per:Math.max(1,+A.per.value||1),start:A.start.value,days:A.days.filter(c=>c.checked).map(c=>+c.value)});
           if(r.error){toast(r.error);return;}
-          A.text.value=toLines(r.items); renderPreview(); toast(r.items.length+'일치 일정을 만들었어요. 확인 후 저장하세요.');
+          A.text.value=toLines(r.items); A.unit.value='장'; A.dirty=true; renderPreview(); toast(r.items.length+'일치 일정을 만들었어요. 확인 후 저장하세요.');
         }},'일정 만들기')))),
     h('div',{class:'card'},
       h('h2',{class:'disp',text:'3. 확인하고 저장'}),
       h('div',{class:'stack'},
         h('label',{class:'f',for:'plan-name'},'모임 이름 / 필사 제목',A.name),
+        h('label',{class:'f',for:'plan-unit'},'하루 분량을 세는 단위',A.unit),
         h('label',{class:'f',for:'plan-text'},'날짜별 일정 (직접 고쳐도 돼요)',A.text),
         A.preview,
         h('div',{class:'row'},
@@ -979,9 +995,9 @@ function renderPreview(){
   if(r.errors.length)out.push(h('div',{class:'notice'},r.errors.slice(0,6).map(e=>h('div',{text:e})),r.errors.length>6?h('div',{text:'… 외 '+(r.errors.length-6)+'건'}):null));
   if(r.items.length){
     const tot=r.items.reduce((s,i)=>s+i.n,0);
-    out.push(h('p',{class:'small',style:'margin:0'},h('b',{text:r.items.length+'일 · '+fmtN(tot)+'장'}),'  '+fmtKo(r.items[0].d)+' ~ '+fmtKo(r.items[r.items.length-1].d)));
+    out.push(h('p',{class:'small',style:'margin:0'},h('b',{text:r.items.length+'일 · '+fmtN(tot)+A.unit.value}),'  '+fmtKo(r.items[0].d)+' ~ '+fmtKo(r.items[r.items.length-1].d)));
     out.push(h('div',{class:'scrollx',style:'max-height:220px;overflow-y:auto'},h('table',{class:'table'},
-      h('thead',{},h('tr',{},h('th',{text:'날짜'}),h('th',{text:'범위'}),h('th',{text:'장'}))),
+      h('thead',{},h('tr',{},h('th',{text:'날짜'}),h('th',{text:'범위'}),h('th',{text:A.unit.value}))),
       h('tbody',{},r.items.slice(0,40).map(i=>h('tr',{},h('td',{class:'num',text:fmtKo(i.d)}),h('td',{text:i.t}),h('td',{class:'num',text:String(i.n)})))))));
     if(r.items.length>40)out.push(h('p',{class:'muted small',style:'margin:0',text:'앞의 40일만 보여 드려요.'}));
   }
@@ -992,14 +1008,14 @@ async function savePlan(){
   if(r.errors.length){renderPreview();toast('고칠 곳이 있어요. 빨간 안내를 확인해 주세요.');return;}
   if(!r.items.length){toast('저장할 일정이 없어요.');return;}
   try{
-    await rpc('setPlan',{title:A.name.value.trim(),items:r.items});
+    await rpc('setPlan',{title:A.name.value.trim(),unit:A.unit.value,items:r.items});
     A.dirty=false; toast('일정을 저장했어요.'); await refresh();
   }catch(e){toast(errText(e));}
 }
 const armed=new Set();
 function updateAdmin(){
   const A=admin; if(!A)return;
-  if(!A.dirty&&S.plan){A.name.value=S.plan.name||''; A.text.value=toLines(items()); renderPreview();}
+  if(!A.dirty&&S.plan){A.name.value=S.plan.name||''; A.unit.value=unitOf(); A.text.value=toLines(items()); renderPreview();}
   const ids=memberIds(),sig=ids.map(id=>id+S.members[id].name+(S.staff.includes(id)?'*':'')).join('|');
   if(A.sig===sig)return; A.sig=sig;
   A.members.replaceChildren(ids.length?h('ul',{class:'sched'},ids.map(id=>{

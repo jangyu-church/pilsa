@@ -70,7 +70,7 @@ var READ_ONLY = { state: 1, login: 1 };
 var HANDLERS = {
   register: register_, login: login_, state: state_, check: check_, photo: photo_, rename: rename_,
   setPlan: setPlan_, setNotice: setNotice_, removeMember: removeMember_, resetPin: resetPin_,
-  setStaff: setStaff_, cheer: cheer_
+  setStaff: setStaff_, cheer: cheer_, checkMany: checkMany_
 };
 
 function route_(b) {
@@ -207,7 +207,8 @@ function state_(b) {
     .filter(function (x) { return validDate_(x.d); })
     .sort(function (a, c) { return a.d < c.d ? -1 : 1; });
   var cfg = rows_('config'), title = '';
-  cfg.forEach(function (r) { if (String(r[0]) === 'title') title = String(r[1]); });
+  var unit = '장';
+  cfg.forEach(function (r) { if (String(r[0]) === 'title') title = String(r[1]); if (String(r[0]) === 'unit' && String(r[1]) === '회') unit = '회'; });
   var members = rows_('members').map(function (r) { return { id: String(r[0]), name: String(r[1]) }; });
   var checks = {};
   rows_('checks').forEach(function (r) {
@@ -222,7 +223,7 @@ function state_(b) {
   var cutoff = Utilities.formatDate(new Date(Date.now() - 7 * 864e5), TZ, 'yyyy-MM-dd');
   var cheers = rows_('cheers').map(function (r) { return [String(r[0]), String(r[1]), ds_(r[2])]; })
     .filter(function (c) { return c[2] >= cutoff; });
-  return { ok: true, title: title, plan: plan, members: members, checks: checks, notice: notice, notices: recent,
+  return { ok: true, title: title, unit: unit, plan: plan, members: members, checks: checks, notice: notice, notices: recent,
            staff: staffIds_(), role: roleOf_(me), admin: isAdmin_(me.name), cheers: cheers,
            today: todayKst_(), now: Date.now() };
 }
@@ -255,6 +256,26 @@ function check_(b) {
   s.appendRow([me.id, d, at, '']);
   s.getRange(s.getLastRow(), 2).setNumberFormat('@').setValue(d);
   return { ok: true, at: at };
+}
+
+/* 밀린 날을 한꺼번에 ‘썼어요’로 체크 (사진 없이). 이미 체크한 날과 일정 밖·미래 날짜는 건너뜀 */
+function checkMany_(b) {
+  var me = need_(b), dates = Array.isArray(b.dates) ? b.dates : [];
+  if (dates.length > 400) throw { error: 'bad_run', message: '한 번에 너무 많아요.' };
+  var plan = {}; rows_('plan').forEach(function (r) { plan[ds_(r[0])] = 1; });
+  var have = {}; rows_('checks').forEach(function (r) { if (String(r[0]) === me.id) have[ds_(r[1])] = 1; });
+  var today = todayKst_(), at = Date.now(), add = [];
+  dates.forEach(function (d) {
+    d = String(d);
+    if (!validDate_(d) || d > today || !plan[d] || have[d]) return;
+    have[d] = 1; add.push([me.id, d, at, '']);
+  });
+  if (add.length) {
+    var s = sheet_('checks'), start = s.getLastRow() + 1;
+    s.getRange(start, 2, add.length, 1).setNumberFormat('@');
+    s.getRange(start, 1, add.length, 4).setValues(add);
+  }
+  return { ok: true, added: add.length };
 }
 
 function photo_(b) {
@@ -303,10 +324,15 @@ function setPlan_(b) {
     s.getRange(2, 1, clean.length, 2).setNumberFormat('@');
     s.getRange(2, 1, clean.length, 3).setValues(clean);
   }
-  var cfg = sheet_('config'), title = cleanText_(b.title, 40), rs = rows_('config'), done = false;
-  rs.forEach(function (r, i) { if (String(r[0]) === 'title') { cfg.getRange(i + 2, 2).setValue(title); done = true; } });
-  if (!done) cfg.appendRow(['title', title]);
+  setConfig_('title', cleanText_(b.title, 40));
+  setConfig_('unit', b.unit === '회' ? '회' : '장');   // 하루 분량을 세는 단위: 장 또는 회
   return { ok: true, count: clean.length };
+}
+
+function setConfig_(key, value) {
+  var cfg = sheet_('config'), rs = rows_('config'), done = false;
+  rs.forEach(function (r, i) { if (String(r[0]) === key) { cfg.getRange(i + 2, 2).setValue(value); done = true; } });
+  if (!done) cfg.appendRow([key, value]);
 }
 
 function setNotice_(b) {
