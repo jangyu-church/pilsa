@@ -239,9 +239,10 @@ function state_(b) {
 
 /* ───────── 체크 / 사진 ───────── */
 function planHas_(date) { return rows_('plan').some(function (r) { return ds_(r[0]) === date; }); }
-function checkDate_(b) {
+/* 체크는 미리 써 둔 날(앞으로의 일정)도 할 수 있어요. 사진 인증은 오늘까지만 받아요. */
+function checkDate_(b, allowFuture) {
   var d = String(b.date || '');
-  if (!validDate_(d) || d > todayKst_()) throw { error: 'bad_run', message: '아직 체크할 수 없는 날짜예요.' };
+  if (!validDate_(d) || (!allowFuture && d > todayKst_())) throw { error: 'bad_run', message: '아직 사진을 올릴 수 없는 날짜예요. 그날이 되면 올려 주세요.' };
   if (!planHas_(d)) throw { error: 'bad_run', message: '일정에 없는 날짜예요.' };
   return d;
 }
@@ -255,7 +256,7 @@ function trashPhoto_(pid) {
 }
 
 function check_(b) {
-  var me = need_(b), d = checkDate_(b), s = sheet_('checks'), rs = rows_('checks'), i = findCheck_(rs, me.id, d);
+  var me = need_(b), d = checkDate_(b, true), s = sheet_('checks'), rs = rows_('checks'), i = findCheck_(rs, me.id, d);
   if (b.on === false) {
     if (i >= 0) { trashPhoto_(String(rs[i][3] || '')); s.deleteRow(i + 2); }
     return { ok: true };
@@ -267,16 +268,16 @@ function check_(b) {
   return { ok: true, at: at };
 }
 
-/* 밀린 날을 한꺼번에 ‘썼어요’로 체크 (사진 없이). 이미 체크한 날과 일정 밖·미래 날짜는 건너뜀 */
+/* 여러 날을 한꺼번에 ‘썼어요’로 체크 (사진 없이). 이미 체크한 날과 일정에 없는 날짜는 건너뜀 */
 function checkMany_(b) {
   var me = need_(b), dates = Array.isArray(b.dates) ? b.dates : [];
   if (dates.length > 400) throw { error: 'bad_run', message: '한 번에 너무 많아요.' };
   var plan = {}; rows_('plan').forEach(function (r) { plan[ds_(r[0])] = 1; });
   var have = {}; rows_('checks').forEach(function (r) { if (String(r[0]) === me.id) have[ds_(r[1])] = 1; });
-  var today = todayKst_(), at = Date.now(), add = [];
+  var at = Date.now(), add = [];
   dates.forEach(function (d) {
     d = String(d);
-    if (!validDate_(d) || d > today || !plan[d] || have[d]) return;
+    if (!validDate_(d) || !plan[d] || have[d]) return;
     have[d] = 1; add.push([me.id, d, at, '']);
   });
   if (add.length) {

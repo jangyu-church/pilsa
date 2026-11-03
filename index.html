@@ -799,6 +799,15 @@ function viewToday(){
           missed.length>5?h('button',{class:'btn sm',onclick:()=>{S.showAllMissed=!S.showAllMissed;schedule();}},S.showAllMissed?'접기':'모두 보기 ('+missed.length+')'):null,
           h('button',{class:'btn sm primary',onclick:()=>checkAllMissed(missed.map(i=>i.d))},'밀린 '+missed.length+'일 모두 썼어요'))));
     }
+    const upcoming=its.filter(i=>i.d>t);
+    if(upcoming.length){
+      const doneAhead=upcoming.filter(i=>done[i.d]).length;
+      v.append(h('div',{class:'card'},
+        h('h2',{text:'미리 쓰셨나요?'+(doneAhead?' · 미리 쓴 날 '+doneAhead+'일':'')}),
+        h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'앞으로 일정을 미리 써 두셨다면 여기서 체크하세요. 진행률에 바로 반영되고, 그날이 되면 사진만 올리면 돼요.'}),
+        h('ul',{class:'sched'},upcoming.slice(0,7).map(i=>schedRow(i,done,t))),
+        upcoming.length>7?h('button',{class:'btn sm',onclick:()=>go('plan')},'일정 탭에서 더 보기'):null));
+    }
   }
   return v;
 }
@@ -814,7 +823,7 @@ function checkAllMissed(dates){
     .then(()=>{pendingN--;schedule();if(pendingN===0)refresh();});
 }
 function schedRow(it,done,t){
-  const on=!!done[it.d]; const can=isMember()&&it.d<=t;
+  const on=!!done[it.d]; const can=isMember();   // 미리 쓴 날도 체크할 수 있어요
   return h('li',{class:it.d===t?'today':''},
     h('span',{class:'dt num',text:fmtKo(it.d)}),
     h('span',{class:'lb'},it.t,h('small',{class:'num',text:it.n+unitOf()})),
@@ -928,7 +937,7 @@ function viewPlan(){
   const done=myProg().done||{};
   v.append(h('div',{class:'card'},
     h('h2',{class:'disp',text:(S.plan.name||'필사 일정')}),
-    h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'총 '+its.length+'일 · '+fmtN(its.reduce((s,i)=>s+i.n,0))+unitOf()+(isMember()?' · 오늘까지 날짜는 직접 체크할 수 있어요':'')}),
+    h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'총 '+its.length+'일 · '+fmtN(its.reduce((s,i)=>s+i.n,0))+unitOf()+(isMember()?' · 미리 쓴 날도 직접 체크할 수 있어요':'')}),
     h('ul',{class:'sched'},its.map(i=>schedRow(i,done,t)))));
   return v;
 }
