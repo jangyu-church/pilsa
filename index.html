@@ -196,6 +196,7 @@ svg.chart text.v{fill:var(--ink);font-weight:700}
 .rank .cheer{padding:2px 9px;font-size:12px}
 .rank .cheer svg{width:13px;height:13px}
 .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:0 6px;margin-left:6px;background:var(--staff);color:#fff;vertical-align:1px}
+.tag.adm{background:var(--accent);color:var(--accent-ink)}
 .pillst{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;background:var(--surface2);color:var(--muted)}
 .pillst.ok{background:var(--good-soft);color:var(--good-text)}
 .pillst.warn{background:var(--warn-soft);color:var(--warn-text)}
@@ -419,7 +420,7 @@ function stats(items,done,t){
 const CFG=window.SSB_CONFIG||{};
 const API=CFG.API_URL||'';
 const LS='ssb-v1';
-const S={session:null,myId:null,isAdmin:false,role:'member',staff:[],notice:null,notices:[],cheers:[],noticeDraft:'',plan:null,planLoaded:false,members:{},progress:{},
+const S={session:null,myId:null,isAdmin:false,role:'member',owner:false,owners:[],adminIds:[],staff:[],notice:null,notices:[],cheers:[],noticeDraft:'',plan:null,planLoaded:false,members:{},progress:{},
   tab:'today',galleryDate:null,net:'',editName:false,scrolled:false,showAllMissed:false,authMode:'login',busy:false};
 let pendingN=0,wq=Promise.resolve(),refreshing=false;
 const localShots=new Map();
@@ -439,7 +440,7 @@ const ERR={
   net:'인터넷 연결이 불안정해요. 잠시 뒤 다시 시도해 주세요.',
   no_api:'서버 주소가 아직 설정되지 않았어요.',
   bad_action:'서버가 아직 새 버전이 아니에요. 관리자가 서버를 새로 배포해야 이 기능을 쓸 수 있어요.',
-  full_staff:'운영진은 3명까지예요.',
+  full_staff:'정할 수 있는 인원이 다 찼어요. (운영진 3명, 관리자 5명까지)',
   server:'서버에 문제가 생겼어요. 잠시 뒤 다시 시도해 주세요.'
 };
 const errText=e=>(e&&e.message&&(e.error==='bad_run'||e.error==='forbidden'||e.error==='server'||e.error==='full_staff'))?e.message:((e&&ERR[e.error])||ERR.server);
@@ -503,10 +504,10 @@ function applyState(j){
   const pr={};
   Object.keys(j.checks||{}).forEach(id=>{const done={},pics={};j.checks[id].forEach(c=>{done[c[0]]=c[1]||1;if(c[2])pics[c[0]]=c[2];});pr[id]={done,pics};});
   S.progress=pr;S.net='';
-  S.isAdmin=!!j.admin;S.role=j.role||(j.admin?'admin':'member');S.staff=j.staff||[];
+  S.isAdmin=!!j.admin;S.role=j.role||(j.admin?'admin':'member');S.staff=j.staff||[];S.owner=!!j.owner;S.owners=j.owners||[];S.adminIds=j.admins||[];
   S.notice=typeof j.notice==='string'?(j.notice?{text:j.notice,at:0,by:''}:null):(j.notice||null);   // 옛 서버(글자만 보냄)도 읽어요
   S.notices=j.notices||(S.notice?[S.notice]:[]);S.cheers=j.cheers||[];
-  lsSet(LS+':data',{plan:S.plan,members:S.members,progress:S.progress,notice:S.notice,notices:S.notices,staff:S.staff,role:S.role,cheers:S.cheers,isAdmin:S.isAdmin});
+  lsSet(LS+':data',{plan:S.plan,members:S.members,progress:S.progress,notice:S.notice,notices:S.notices,staff:S.staff,owner:S.owner,owners:S.owners,adminIds:S.adminIds,role:S.role,cheers:S.cheers,isAdmin:S.isAdmin});
 }
 async function refresh(){
   if(!S.session||refreshing||!API)return;
@@ -516,7 +517,7 @@ async function refresh(){
   refreshing=false;schedule();
 }
 function logout(auto){
-  S.session=null;S.myId=null;S.isAdmin=false;S.progress={};S.members={};S.plan=null;S.planLoaded=false;S.tab='today';S.role='member';S.staff=[];S.cheers=[];S.notice=null;S.notices=[];
+  S.session=null;S.myId=null;S.isAdmin=false;S.progress={};S.members={};S.plan=null;S.planLoaded=false;S.tab='today';S.role='member';S.owner=false;S.owners=[];S.adminIds=[];S.staff=[];S.cheers=[];S.notice=null;S.notices=[];
   lsSet(LS+':session',null);lsSet(LS+':data',null);
   if(auto===true)toast('다시 로그인해 주세요.');
   schedule();
@@ -582,8 +583,10 @@ async function uploadShot(file,d){
 /* ===== 이름 표시 · 권한 ===== */
 const canNotice=()=>S.role==='admin'||S.role==='staff';
 const nameOfId=id=>(S.members[id]&&S.members[id].name)||'이름 없음';
-const roleLabel=id=>S.staff.includes(id)?'운영진':'';
-function nameEl(id){return h('span',{class:'nm'},nameOfId(id),roleLabel(id)?h('span',{class:'tag',text:'운영진'}):null);}
+const roleOfId=id=>S.owners.includes(id)?'owner':(S.adminIds.includes(id)?'admin':(S.staff.includes(id)?'staff':'member'));
+const roleLabel=id=>({owner:'관리자',admin:'관리자',staff:'운영진'}[roleOfId(id)]||'');     // 사람들 화면에 붙는 표시
+const roleTag=id=>{const l=roleLabel(id);return l?h('span',{class:'tag'+(l==='관리자'?' adm':''),text:l}):null;};
+function nameEl(id){return h('span',{class:'nm'},nameOfId(id),roleTag(id));}
 
 /* ===== 응원 ===== */
 const HEART=icon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>');
@@ -670,7 +673,7 @@ function renderInstallBar(){
 function viewSettings(){
   const v=h('div',{class:'stack'});
   noticeBar().forEach(n=>v.append(n));
-  const roleTxt=S.role==='admin'?'관리자':(S.role==='staff'?'운영진':'회원');
+  const roleTxt=S.role==='admin'?(S.owner?'최고 관리자':'관리자'):(S.role==='staff'?'운영진':'회원');
   // 내 정보
   const nameRow=S.editName?
     (()=>{const i=h('input',{type:'text',id:'rename',value:myName(),maxlength:'12',style:'max-width:180px'});
@@ -723,7 +726,7 @@ function noticeBar(){
   if(!API)n.push(h('div',{class:'notice',text:'아직 서버 주소가 설정되지 않았어요. config.js 의 API_URL 을 채워 주세요.'}));
   else if(S.net==='net')n.push(h('div',{class:'notice',text:'인터넷 연결이 불안정해요. 마지막으로 받은 내용을 보여 드리고 있어요.'}));
   else if(S.net==='server')n.push(h('div',{class:'notice',text:'서버에 문제가 생겼어요. 잠시 뒤 다시 시도해 주세요.'}));
-  if(S.notice&&S.notice.text&&S.session&&S.tab!=='settings')n.push(h('div',{class:'notice announce'},h('b',{text:'공지  '}),S.notice.text,S.notice.by?h('small',{text:nameOfId(S.notice.by)+(roleLabel(S.notice.by)?' · 운영진':'')}):null));
+  if(S.notice&&S.notice.text&&S.session&&S.tab!=='settings')n.push(h('div',{class:'notice announce'},h('b',{text:'공지  '}),S.notice.text,S.notice.by?h('small',{text:nameOfId(S.notice.by)+(roleLabel(S.notice.by)?' · '+roleLabel(S.notice.by):'')}):null));
   return n;
 }
 function authView(){
@@ -867,7 +870,7 @@ function viewStatus(){
   const rk=h('ol',{class:'rank'});
   rows.forEach((r,i)=>rk.append(h('li',{class:r.id===S.myId?'me':''},
     h('span',{class:'no num',text:String(i+1)}),
-    h('span',{class:'nm'},r.name+(r.id===S.myId?' (나)':''),roleLabel(r.id)?h('span',{class:'tag',text:'운영진'}):null),
+    h('span',{class:'nm'},r.name+(r.id===S.myId?' (나)':''),roleTag(r.id)),
     h('span',{class:'val num',text:r.st.pct+'% · '+fmtN(r.st.doneU)+'/'+fmtN(r.st.total)+unitOf()+(r.st.streak>=3?' · '+r.st.streak+'일 연속':'')}),
     h('span',{class:'ch'},(todayIt&&r.id!==S.myId&&isMember())?cheerBtn(r.id,t):null),
     h('span',{class:'bar'},h('b',{style:'width:'+r.st.pct+'%'})))));
@@ -982,7 +985,7 @@ function adminRoot(){
           h('button',{class:'btn',onclick:renderPreview},'미리보기'),
           h('button',{class:'btn primary',onclick:savePlan},'이 일정으로 저장'))),
       h('p',{class:'muted small',style:'margin:10px 0 0',text:'일정을 바꿔도 참여자들이 이미 체크한 기록은 날짜 기준으로 그대로 남아요.'})),
-    h('div',{class:'card'},h('h2',{class:'disp',text:'참여자 · 운영진'}),h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'운영진으로 정한 회원은 공지를 쓸 수 있어요. 최대 3명이에요.'}),A.members));
+    h('div',{class:'card'},h('h2',{class:'disp',text:'참여자 · 역할'}),h('p',{class:'muted small',style:'margin:-4px 0 8px',text:'운영진(최대 3명)은 공지를 쓸 수 있어요. 관리자(최대 5명)는 일정·공지·참여자 관리까지 할 수 있어요. 관리자는 최고 관리자만 정할 수 있어요.'}),A.members));
   A.text.addEventListener('input',()=>{A.dirty=true;});
   A.name.addEventListener('input',()=>{A.dirty=true;});
   return A.root;
@@ -1016,15 +1019,26 @@ const armed=new Set();
 function updateAdmin(){
   const A=admin; if(!A)return;
   if(!A.dirty&&S.plan){A.name.value=S.plan.name||''; A.unit.value=unitOf(); A.text.value=toLines(items()); renderPreview();}
-  const ids=memberIds(),sig=ids.map(id=>id+S.members[id].name+(S.staff.includes(id)?'*':'')).join('|');
+  const ids=memberIds(),sig=ids.map(id=>id+S.members[id].name+roleOfId(id)).join('|')+(S.owner?'#o':'');
   if(A.sig===sig)return; A.sig=sig;
   A.members.replaceChildren(ids.length?h('ul',{class:'sched'},ids.map(id=>{
     const pin=h('input',{type:'password',inputmode:'numeric',maxlength:'4',placeholder:'새 번호 4자리','aria-label':'새 비밀번호',style:'width:120px',autocomplete:'off'});
-    const st=S.staff.includes(id);
+    const rl=roleOfId(id);
+    const locked=rl==='owner'||(rl==='admin'&&!S.owner);         // 관리자 계정은 최고 관리자만 바꿀 수 있어요
+    const sel=h('select',{'aria-label':S.members[id].name+' 역할',style:'width:auto',onchange:async e=>{
+      const v=e.target.value;
+      try{await rpc('setRole',{target:id,role:v});toast(v==='admin'?'관리자로 정했어요.':(v==='staff'?'운영진으로 정했어요.':'회원으로 바꿨어요.'));await refresh();}
+      catch(err){toast(errText(err));e.target.value=rl;}
+    }},
+      h('option',{value:'member',selected:rl==='member'},'회원'),
+      h('option',{value:'staff',selected:rl==='staff'},'운영진 (공지)'),
+      h('option',{value:'admin',selected:rl==='admin',disabled:!S.owner},'관리자'+(S.owner?'':' (최고 관리자만)')));
     return h('li',{style:'grid-template-columns:minmax(0,1fr);gap:6px'},
-      h('span',{class:'lb'},S.members[id].name||'이름 없음',st?h('span',{class:'tag',text:'운영진'}):null),
+      h('span',{class:'lb'},S.members[id].name||'이름 없음',rl==='owner'?h('span',{class:'tag adm',text:'최고 관리자'}):roleTag(id)),
+      rl==='owner'?h('span',{class:'muted small',text:'모든 권한을 가진 분이에요. 바꿀 수 없어요.'}):
+      locked?h('span',{class:'muted small',text:'관리자 계정은 최고 관리자만 바꿀 수 있어요.'}):
       h('div',{class:'row'},
-        h('button',{class:'btn sm'+(st?' primary':''),onclick:async()=>{try{await rpc('setStaff',{target:id,on:!st});toast(st?'운영진에서 뺐어요.':'운영진으로 정했어요.');await refresh();}catch(e){toast(errText(e));}}},st?'운영진 해제':'운영진으로 지정'),
+        sel,
         pin,
         h('button',{class:'btn sm',onclick:async()=>{
           if(!/^\d{4}$/.test(pin.value)){toast(ERR.bad_pin);return;}
@@ -1080,7 +1094,7 @@ function init(){
   const ses=lsGet(LS+':session'),data=lsGet(LS+':data');
   if(ses&&ses.id&&ses.token){
     S.session=ses;S.myId=ses.id;
-    if(data&&data.plan){S.plan=data.plan;S.members=data.members||{};S.progress=data.progress||{};S.notice=(data.notice&&typeof data.notice==='object')?data.notice:null;S.notices=data.notices||[];S.staff=data.staff||[];S.cheers=data.cheers||[];S.role=data.role||(data.isAdmin?'admin':'member');S.isAdmin=!!data.isAdmin;S.planLoaded=true;}
+    if(data&&data.plan){S.plan=data.plan;S.members=data.members||{};S.progress=data.progress||{};S.notice=(data.notice&&typeof data.notice==='object')?data.notice:null;S.notices=data.notices||[];S.staff=data.staff||[];S.owner=!!data.owner;S.owners=data.owners||[];S.adminIds=data.adminIds||[];S.cheers=data.cheers||[];S.role=data.role||(data.isAdmin?'admin':'member');S.isAdmin=!!data.isAdmin;S.planLoaded=true;}
   }
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;schedule();});
   window.addEventListener('appinstalled',()=>{deferredInstall=null;closeSheet();schedule();});

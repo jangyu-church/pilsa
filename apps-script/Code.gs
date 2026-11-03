@@ -16,7 +16,7 @@ var MAX_PHOTO_CHARS = 450000;  // 압축된 사진(base64) 최대 길이
 var LAYOUT = {
   members: ['id', 'name', 'pinHash', 'joined'],
   admins: ['name'],
-  staff: ['memberId'],
+  staff: ['memberId', 'role'],        // role: staff(운영진) 또는 admin(앱에서 지정한 관리자)
   config: ['key', 'value'],
   plan: ['date', 'label', 'units'],
   checks: ['memberId', 'date', 'at', 'photoId'],
@@ -24,6 +24,7 @@ var LAYOUT = {
   cheers: ['from', 'to', 'date', 'at']
 };
 var MAX_STAFF = 3;           // 공지를 쓸 수 있는 운영진 수
+var MAX_ADMINS = 5;          // 앱에서 지정할 수 있는 관리자 수 (최고 관리자 제외)
 
 /* ───────── 처음 한 번 실행하는 준비 함수 ───────── */
 function setup() {
@@ -70,7 +71,7 @@ var READ_ONLY = { state: 1, login: 1 };
 var HANDLERS = {
   register: register_, login: login_, state: state_, check: check_, photo: photo_, rename: rename_,
   setPlan: setPlan_, setNotice: setNotice_, removeMember: removeMember_, resetPin: resetPin_,
-  setStaff: setStaff_, cheer: cheer_, checkMany: checkMany_
+  setStaff: setStaff_, setRole: setRole_, cheer: cheer_, checkMany: checkMany_
 };
 
 function route_(b) {
@@ -131,9 +132,19 @@ function tokenFor_(id) {
   var sig = Utilities.computeHmacSha256Signature(id, secret_());
   return sig.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
 }
-function isAdmin_(name) {
+/* 최고 관리자: 시트 admins 탭에 이름이 적힌 분 */
+function isOwner_(name) {
   return rows_('admins').some(function (r) { return String(r[0]).trim() === name; });
 }
+/* staff 탭: 운영진(staff)과 앱에서 지정한 관리자(admin) */
+function roleRows_() {
+  return rows_('staff').map(function (r, i) {
+    return { id: String(r[0]).trim(), role: String(r[1] || '').trim() === 'admin' ? 'admin' : 'staff', row: i + 2 };
+  }).filter(function (x) { return x.id; });
+}
+function adminIds_() { return roleRows_().filter(function (x) { return x.role === 'admin'; }).map(function (x) { return x.id; }); }
+function staffIds_() { return roleRows_().filter(function (x) { return x.role === 'staff'; }).map(function (x) { return x.id; }); }
+function isAdminMe_(me) { return isOwner_(me.name) || adminIds_().indexOf(me.id) >= 0; }
 function need_(b) {
   var id = String(b.id || '');
   if (!id || !b.token || String(b.token) !== tokenFor_(id)) throw { error: 'auth' };
@@ -143,19 +154,16 @@ function need_(b) {
   }
   throw { error: 'auth' };
 }
-function staffIds_() {
-  return rows_('staff').map(function (r) { return String(r[0]).trim(); }).filter(function (x) { return x; });
-}
 function isStaff_(me) { return staffIds_().indexOf(me.id) >= 0; }
-function roleOf_(me) { return isAdmin_(me.name) ? 'admin' : (isStaff_(me) ? 'staff' : 'member'); }
+function roleOf_(me) { return isAdminMe_(me) ? 'admin' : (isStaff_(me) ? 'staff' : 'member'); }
 function needNotice_(b) {
   var me = need_(b);
-  if (!isAdmin_(me.name) && !isStaff_(me)) throw { error: 'forbidden', message: '공지는 관리자와 운영진만 쓸 수 있어요.' };
+  if (!isAdminMe_(me) && !isStaff_(me)) throw { error: 'forbidden', message: '공지는 관리자와 운영진만 쓸 수 있어요.' };
   return me;
 }
 function needAdmin_(b) {
   var me = need_(b);
-  if (!isAdmin_(me.name)) throw { error: 'forbidden', message: '관리자만 할 수 있어요.' };
+  if (!isAdminMe_(me)) throw { error: 'forbidden', message: '관리자만 할 수 있어요.' };
   return me;
 }
 
@@ -169,7 +177,7 @@ function register_(b) {
   for (var i = 0; i < ms.length; i++) if (String(ms[i][1]) === name) throw { error: 'name_taken' };
   var id = 'm' + Utilities.getUuid().replace(/-/g, '').slice(0, 12);
   sheet_('members').appendRow([id, name, pin, Date.now()]);
-  return { ok: true, id: id, token: tokenFor_(id), name: name, admin: isAdmin_(name) };
+  return { ok: true, id: id, token: tokenFor_(id), name: name, admin: isAdminMe_({ id: id, name: name }) };
 }
 
 function login_(b) {
@@ -182,7 +190,7 @@ function login_(b) {
     if (String(ms[i][1]) === name) {
       if (String(ms[i][2]) === pin) {
         cache.remove(key);
-        return { ok: true, id: String(ms[i][0]), token: tokenFor_(String(ms[i][0])), name: name, admin: isAdmin_(name) };
+        return { ok: true, id: String(ms[i][0]), token: tokenFor_(String(ms[i][0])), name: name, admin: isAdminMe_({ id: String(ms[i][0]), name: name }) };
       }
       break;
     }
@@ -194,10 +202,11 @@ function login_(b) {
 function rename_(b) {
   var me = need_(b), name = cleanName_(b.name);
   if (!name) throw { error: 'bad_name' };
+  if (isOwner_(name) && !isOwner_(me.name)) throw { error: 'bad_name' };   // 최고 관리자 이름으로는 바꿀 수 없어요
   var ms = rows_('members');
   for (var i = 0; i < ms.length; i++) if (String(ms[i][1]) === name && String(ms[i][0]) !== me.id) throw { error: 'name_taken' };
   sheet_('members').getRange(me.row, 2).setValue(name);
-  return { ok: true, name: name, admin: isAdmin_(name) };
+  return { ok: true, name: name, admin: isAdminMe_({ id: me.id, name: name }) };
 }
 
 /* ───────── 화면에 필요한 모든 데이터 ───────── */
@@ -214,8 +223,7 @@ function state_(b) {
   rows_('checks').forEach(function (r) {
     var id = String(r[0]); (checks[id] = checks[id] || []).push([ds_(r[1]), Number(r[2]) || 0, String(r[3] || '')]);
   });
-  var nrows = rows_('notice'), nameOf = {};
-  members.forEach(function (m) { nameOf[m.id] = m.name; });
+  var nrows = rows_('notice');
   var notices = nrows.map(function (r) { return { text: String(r[0]).trim(), at: Number(r[1]) || 0, by: String(r[2] || '') }; });
   var last = notices.length ? notices[notices.length - 1] : null;
   var notice = last && last.text ? last : null;                                 // 지금 보이는 공지 (맨 마지막 줄이 비어 있으면 내린 상태)
@@ -224,7 +232,8 @@ function state_(b) {
   var cheers = rows_('cheers').map(function (r) { return [String(r[0]), String(r[1]), ds_(r[2])]; })
     .filter(function (c) { return c[2] >= cutoff; });
   return { ok: true, title: title, unit: unit, plan: plan, members: members, checks: checks, notice: notice, notices: recent,
-           staff: staffIds_(), role: roleOf_(me), admin: isAdmin_(me.name), cheers: cheers,
+           staff: staffIds_(), admins: adminIds_(), owners: members.filter(function (m) { return isOwner_(m.name); }).map(function (m) { return m.id; }),
+           role: roleOf_(me), owner: isOwner_(me.name), admin: isAdminMe_(me), cheers: cheers,
            today: todayKst_(), now: Date.now() };
 }
 
@@ -341,19 +350,36 @@ function setNotice_(b) {
   return { ok: true };
 }
 
-function setStaff_(b) {
-  needAdmin_(b);
-  var target = String(b.target || ''), ms = rows_('members'), found = null;
-  for (var i = 0; i < ms.length; i++) if (String(ms[i][0]) === target) found = { id: target, name: String(ms[i][1]) };
+/* 역할 바꾸기: member(회원) / staff(운영진, 공지만) / admin(관리자, 관리 탭 전체).
+   관리자를 임명하거나 내리는 일은 최고 관리자만 할 수 있어요. */
+function setRole_(b) {
+  var me = needAdmin_(b), target = String(b.target || ''), role = String(b.role || '');
+  if (['admin', 'staff', 'member'].indexOf(role) < 0) throw { error: 'bad_run', message: '역할이 올바르지 않아요.' };
+  var found = null;
+  rows_('members').forEach(function (r) { if (String(r[0]) === target) found = { id: target, name: String(r[1]) }; });
   if (!found) throw { error: 'bad_run', message: '없는 회원이에요.' };
-  var st = sheet_('staff'), rs = rows_('staff'), at = -1;
-  for (var k = 0; k < rs.length; k++) if (String(rs[k][0]).trim() === target) at = k;
-  if (b.on === false) { if (at >= 0) st.deleteRow(at + 2); return { ok: true }; }
-  if (at >= 0) return { ok: true };
-  if (isAdmin_(found.name)) throw { error: 'bad_run', message: '관리자는 이미 모든 권한이 있어요.' };
-  if (rs.length >= MAX_STAFF) throw { error: 'full_staff', message: '운영진은 ' + MAX_STAFF + '명까지예요.' };
-  st.appendRow([target]);
+  if (isOwner_(found.name)) throw { error: 'bad_run', message: '최고 관리자는 이미 모든 권한이 있어요.' };
+  var rr = roleRows_(), cur = 'member', at = null;
+  rr.forEach(function (x) { if (x.id === target) { cur = x.role; at = x; } });
+  if ((role === 'admin' || cur === 'admin') && !isOwner_(me.name)) throw { error: 'forbidden', message: '관리자는 최고 관리자만 정할 수 있어요.' };
+  if (role === cur) return { ok: true };
+  var st = sheet_('staff');
+  if (role === 'member') { if (at) st.deleteRow(at.row); return { ok: true }; }
+  var n = rr.filter(function (x) { return x.role === role; }).length;
+  if (role === 'staff' && n >= MAX_STAFF) throw { error: 'full_staff', message: '운영진은 ' + MAX_STAFF + '명까지예요.' };
+  if (role === 'admin' && n >= MAX_ADMINS) throw { error: 'full_staff', message: '관리자는 최고 관리자 외에 ' + MAX_ADMINS + '명까지예요.' };
+  if (at) st.getRange(at.row, 1, 1, 2).setValues([[target, role]]); else st.appendRow([target, role]);
   return { ok: true };
+}
+/* 예전 화면(운영진 지정/해제)과의 호환 */
+function setStaff_(b) { return setRole_({ id: b.id, token: b.token, target: b.target, role: b.on === false ? 'member' : 'staff' }); }
+
+/* 관리자 계정(최고 관리자·지정 관리자)을 바꾸는 일은 최고 관리자만 */
+function guardAdminTarget_(me, target) {
+  var name = '';
+  rows_('members').forEach(function (r) { if (String(r[0]) === target) name = String(r[1]); });
+  var targetIsAdmin = isOwner_(name) || adminIds_().indexOf(target) >= 0;
+  if (targetIsAdmin && !isOwner_(me.name)) throw { error: 'forbidden', message: '관리자 계정은 최고 관리자만 바꿀 수 있어요.' };
 }
 
 /* ───────── 응원 ───────── */
@@ -374,8 +400,9 @@ function cheer_(b) {
 }
 
 function removeMember_(b) {
-  needAdmin_(b);
+  var me = needAdmin_(b);
   var target = String(b.target || ''), ms = rows_('members');
+  guardAdminTarget_(me, target);
   for (var i = 0; i < ms.length; i++) {
     if (String(ms[i][0]) === target) {
       sheet_('members').deleteRow(i + 2);
@@ -394,8 +421,9 @@ function removeMember_(b) {
 }
 
 function resetPin_(b) {
-  needAdmin_(b);
+  var me = needAdmin_(b);
   var target = String(b.target || ''), pin = cleanHash_(b.pin), ms = rows_('members');
+  guardAdminTarget_(me, target);
   if (!pin) throw { error: 'bad_pin' };
   for (var i = 0; i < ms.length; i++) {
     if (String(ms[i][0]) === target) {
