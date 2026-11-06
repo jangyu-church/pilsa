@@ -1,5 +1,5 @@
 // 앱 화면 파일을 폰에 보관해 두는 서비스 워커 (서버 요청은 건드리지 않음)
-const CACHE = 'ssb-shell-v4';
+const CACHE = 'ssb-shell-v5';
 const SHELL = ['./', 'index.html', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

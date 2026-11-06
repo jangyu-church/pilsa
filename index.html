@@ -17,6 +17,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
 /* Layout: 모바일 우선 한 칼럼 앱. 아래 탭바(오늘·현황·인증방·일정·관리), 넓은 화면에서는 현황이 2열 */
+/* 아래 여백: 폰이 알려 주는 값(env)과, 폰이 0으로 잘못 알려 줄 때 쓰는 최소값(--sab-min, 스크립트가 정함) 중 큰 값 */
+:root{--sab-min:0px;--sab:max(env(safe-area-inset-bottom,0px),var(--sab-min))}
 :root{
   /* 화사한 (기본): Etsy 팔레트 — 따뜻한 베이지 바탕 + Etsy Orange */
   --bg:#FAF6F2; --surface:#FFFFFF; --surface2:#F2EBE3; --ink:#222222; --muted:#595350; --line:#E6DDD2;
@@ -48,7 +50,7 @@
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.55;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  padding-top:env(safe-area-inset-top,0px);padding-bottom:96px;-webkit-text-size-adjust:100%}
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(96px + var(--sab));-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
 .wrap{max-width:760px;margin:0 auto}
 .num{font-variant-numeric:tabular-nums}
@@ -67,7 +69,7 @@ header.top .sub{font-size:13px;color:var(--muted);margin-top:4px}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px}
 
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:20;
-  padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+  padding:6px max(8px,env(safe-area-inset-right,0px)) calc(6px + var(--sab)) max(8px,env(safe-area-inset-left,0px))}
 nav.tabs .in{max-width:760px;margin:0 auto;display:flex;gap:2px}
 nav.tabs button{flex:1;min-width:0;background:none;border:0;padding:6px 2px;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:12px;cursor:pointer}
 nav.tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -206,8 +208,8 @@ svg.chart text.v{fill:var(--ink);font-weight:700}
 .noticelist li{padding:8px 0;border-bottom:1px solid var(--line)}
 .noticelist li:last-child{border-bottom:0}
 .noticelist small{color:var(--muted)}
-#installbar{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:0 max(10px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))}
-body.hasnav #installbar{bottom:calc(66px + env(safe-area-inset-bottom,0px));padding-bottom:0}
+#installbar{position:fixed;left:0;right:0;bottom:0;z-index:25;padding:0 max(10px,env(safe-area-inset-right,0px)) calc(10px + var(--sab)) max(10px,env(safe-area-inset-left,0px))}
+body.hasnav #installbar{bottom:calc(66px + var(--sab));padding-bottom:0}
 #installbar .in{max-width:740px;margin:0 auto;background:var(--ink);color:var(--bg);border-radius:14px;padding:10px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.22)}
 #installbar img{width:38px;height:38px;border-radius:9px;flex:none}
 #installbar .tx{flex:1;min-width:0;font-size:13.5px;line-height:1.35}
@@ -215,9 +217,9 @@ body.hasnav #installbar{bottom:calc(66px + env(safe-area-inset-bottom,0px));padd
 #installbar button{border:0;border-radius:10px;padding:8px 13px;font-weight:700;font-size:14px;cursor:pointer}
 #installbar .go{background:var(--accent);color:var(--accent-ink)}
 #installbar .x{background:transparent;color:inherit;opacity:.75;padding:8px 6px;font-weight:500}
-body.hasbar{padding-bottom:170px}
+body.hasbar{padding-bottom:calc(170px + var(--sab))}
 #sheet{position:fixed;inset:0;z-index:55;background:rgba(10,6,3,.6);display:flex;align-items:flex-end;justify-content:center}
-#sheet .box{width:100%;max-width:560px;background:var(--surface);color:var(--ink);border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow:auto}
+#sheet .box{width:100%;max-width:560px;background:var(--surface);color:var(--ink);border-radius:18px 18px 0 0;padding:18px 18px calc(18px + var(--sab));max-height:88vh;overflow:auto}
 #sheet h2{margin:0 0 4px;font-size:19px}
 #sheet ol{margin:12px 0;padding-left:0;list-style:none;counter-reset:st;display:flex;flex-direction:column;gap:10px}
 #sheet li{counter-increment:st;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start;font-size:15px}
@@ -234,7 +236,7 @@ body.hasbar{padding-bottom:170px}
 
 #lightbox{position:fixed;inset:0;background:rgba(5,10,20,.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
 #lightbox img{max-width:100%;max-height:100%;border-radius:8px}
-#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;z-index:60;max-width:calc(100vw - 32px)}
+#toast{position:fixed;left:50%;bottom:calc(84px + var(--sab));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;z-index:60;max-width:calc(100vw - 32px)}
 @media (prefers-reduced-motion:no-preference){
   .checkbtn{transition:background .2s,color .2s,border-color .2s}
   .rank .bar b{transition:width .5s}
@@ -608,6 +610,30 @@ function cheerBtn(to,date){
   b.innerHTML=HEART;b.append(mine?'응원함'+(n>1?' '+n:''):'응원'+(n?' '+n:''));return b;
 }
 
+/* ===== 아래 탭이 폰 버튼(◁ ○ |||)에 가려지는 문제 =====
+   일부 안드로이드 폰은 앱으로 설치해 열면 화면을 폰 버튼 뒤까지 그리면서도
+   가려지는 높이를 0으로 알려 준다. 그런 경우를 감지해 아래 여백을 직접 넣는다.
+   설정 화면에서 '자동 / 조금 / 많이 / 끔'을 고를 수 있다. */
+const K_BOT=LS+':bottom_gap';
+const BOT_OPTS=[['auto','자동'],['24','조금'],['48','많이'],['0','끔']];
+function envBottom(){
+  try{const d=document.createElement('div');d.style.cssText='position:fixed;bottom:0;height:0;visibility:hidden;padding-bottom:env(safe-area-inset-bottom,0px)';
+    document.body.appendChild(d);const v=parseFloat(getComputedStyle(d).paddingBottom)||0;d.remove();return v;}catch(e){return 0;}
+}
+function autoBottomGap(){
+  if(!/Android/i.test(navigator.userAgent||''))return 0;
+  if(envBottom()>0)return 0; // 폰이 제대로 알려 주면 그 값을 그대로 씀
+  const vh=window.innerHeight,sh=(window.screen&&screen.height)||0;
+  if(!vh||!sh)return 0;
+  // 창 높이가 화면 전체와 거의 같으면 = 폰 버튼 뒤까지 그려지고 있음 → 버튼 높이만큼 띄움
+  return vh>=sh-24?48:0;
+}
+function applyBottomGap(){
+  const pick=lsGet(K_BOT)||'auto';
+  const px=pick==='auto'?autoBottomGap():(parseInt(pick,10)||0);
+  document.documentElement.style.setProperty('--sab-min',px+'px');
+}
+
 /* ===== 홈 화면에 설치 ===== */
 const K_INST=LS+':install_closed';
 let deferredInstall=null;
@@ -694,6 +720,12 @@ function viewSettings(){
     inst?null:h('div',{class:'row'},
       h('button',{class:'btn primary',onclick:doInstall},'앱으로 설치하기'),
       h('button',{class:'btn',onclick:()=>{lsSet(K_INST,null);renderInstallBar();toast('아래쪽에 안내를 다시 띄웠어요.');}},'안내 다시 띄우기'))));
+  // 아래 메뉴 위치
+  const botPick=lsGet(K_BOT)||'auto';
+  v.append(h('div',{class:'card'},
+    h('h2',{class:'disp',text:'아래 메뉴 위치'}),
+    h('p',{class:'muted small',style:'margin:0 0 10px',text:'아래 메뉴가 폰 버튼(◁ ○ |||)에 가려지면 ‘조금’이나 ‘많이’를 눌러 위로 올려 보세요.'}),
+    h('div',{class:'seg'},...BOT_OPTS.map(([k,l])=>h('button',{type:'button','aria-pressed':String(botPick===k),onclick:()=>{lsSet(K_BOT,k==='auto'?null:k);applyBottomGap();schedule();}},l)))));
   // 공지
   const notices=S.notices||[];
   const draft=h('textarea',{id:'notice-in',maxlength:'200',placeholder:'예: 이번 토요일 오전 10시, 2층 소예배실에서 모여요',style:'min-height:84px;white-space:pre-wrap;font-family:var(--font-body);font-size:15px'});
@@ -1106,6 +1138,8 @@ function init(){
   }
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;schedule();});
   window.addEventListener('appinstalled',()=>{deferredInstall=null;closeSheet();schedule();});
+  applyBottomGap();
+  window.addEventListener('resize',applyBottomGap);
   render();
   if(S.session)refresh();
   setInterval(()=>{if(!document.hidden)refresh();},60000);
